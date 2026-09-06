@@ -1,0 +1,6 @@
+rootProject.name = 'svgsketch'
+/*
+['tinyweb','tinyai','agentui','svg'].each {
+    if (file("deps/$it").exists()) includeBuild "deps/$it"
+}
+*/

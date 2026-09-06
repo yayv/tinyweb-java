@@ -1,0 +1,58 @@
+plugins {
+    id 'application'
+}
+
+group   = 'top.x0a'
+version = '0.0.1'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+sourceSets {
+    main {
+        java.srcDirs      = ['src']
+        resources.srcDirs = ['resource']
+    }
+}
+
+layout.buildDirectory = file('out')
+
+repositories { mavenCentral() }
+
+/* ---------- JavaFX：使用本机 SDK ---------- */
+// 默认 /Library/Java/JavaFX/lib；可用 JAVA_FX 覆盖（指向 SDK 根目录或 lib 目录都行）
+def fxHome = file(System.getenv('JAVA_FX') ?: '/Library/Java/JavaFX')
+def javafxLib = new File(fxHome, 'lib').isDirectory() ? new File(fxHome, 'lib') : fxHome
+if (!new File(javafxLib, 'javafx.controls.jar').isFile()) {
+    throw new GradleException("找不到 JavaFX SDK 的 lib 目录: $javafxLib，请设置 JAVA_FX 环境变量")
+}
+def javafxModules = 'javafx.controls'
+
+dependencies {
+    // 编译期 compileOnly；运行期由 --module-path 提供，避免 classpath / module-path 冲突
+    compileOnly fileTree(dir: javafxLib, include: ['javafx.*.jar'])
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += ['--module-path', javafxLib.absolutePath, '--add-modules', javafxModules]
+}
+
+tasks.named('run') {
+    jvmArgs '--module-path', javafxLib.absolutePath, '--add-modules', javafxModules
+}
+
+/*
+// deps/ 子项目建好后放开：settings.gradle 里 includeBuild，这里声明坐标
+dependencies {
+    implementation 'top.x0a:tinyweb:0.0.1'
+    implementation 'top.x0a:tinyai:0.0.1'
+    implementation 'top.x0a:agentui:0.0.1'
+    implementation 'top.x0a:svg:0.0.1'
+}
+*/
+
+application {
+    // 入口是 Main（不继承 Application），这样 JavaFX 走 classpath 也能启动
+    mainClass = 'top.x0a.svgsketch.Main'
+}
