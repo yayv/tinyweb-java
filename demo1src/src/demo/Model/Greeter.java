@@ -1,4 +1,4 @@
-package demo;
+package demo.Model;
 
 import top.x0a.tinyweb.Model;
 

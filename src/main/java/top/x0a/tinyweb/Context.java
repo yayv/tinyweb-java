@@ -62,11 +62,10 @@ public final class Context {
     // --- per-request 错误栈（对照 model::$_error，从 static 降级为请求级）---
     private final Deque<Map<String, Object>> errors = new ArrayDeque<>();
 
-    private final Path logDir;
+    /** 由处理本请求的站点设置（FrontController.handle 第一步） */
+    private Path logDir;
 
-    Context(Path logDir) {
-        this.logDir = logDir;
-    }
+    Context() {}
 
     // ================= 请求读取（public：业务代码用） =================
 
@@ -179,6 +178,7 @@ public final class Context {
     void setController(String v) { this.controller = v; }
     void setAction(String v)     { this.action = v; }
     void setSession(Session s)   { this.session = s; }
+    void setLogDir(Path dir)     { this.logDir = dir; }
 
     String responseBody() { return response.toString(); }
     String responseContentType() { return contentType; }
@@ -210,7 +210,7 @@ public final class Context {
 
     /** 对照 writeLog：落盘 logs/crumbs.<date>.txt */
     void writeLog() {
-        if (log.isEmpty()) return;
+        if (log.isEmpty() || logDir == null) return;
         Path file = logDir.resolve("crumbs." + LocalDate.now() + ".txt");
         try {
             Files.createDirectories(logDir);

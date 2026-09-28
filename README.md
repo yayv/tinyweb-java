@@ -22,6 +22,24 @@ tinyWEB-java/
 curl http://localhost:8080/home/index
 ```
 
+## 五个 DEMO 的说明
+### 1. 无数据库 JWT 登录、退出和身份验证的演示
+demo1src
+
+### 2. 直连数据库的 CRUD 网站
+demo2src
+
+### 3. 一个简单的无头 CMS
+demo3src
+前端页面可以去 vue3-pcweb-cms 项目
+
+### 4. 一个简单的无头电商网站
+demo4src
+前端页面可以去 vue3-pcweb-eshop 项目 (无支付功能)
+
+### 5. 一个权限控制的DEMO
+demo5src
+
 ## 业务项目怎么用
 
 Java 没有 PHP `include` 一下就活的语义，phar 的等价物在这里是：**jar 给基类 + 启动器，

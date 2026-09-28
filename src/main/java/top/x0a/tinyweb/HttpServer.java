@@ -10,10 +10,10 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /**
  * HttpServer — 端口监听 + 轮询，Java 21 虚拟线程每连接（框架内部）。
@@ -30,21 +30,20 @@ import java.util.concurrent.Executors;
  *
  * 只做最小 HTTP/1.1 解析（零依赖，手写）：请求行 + 头 + Content-Length body，逐连接 close。
  */
-final class HttpServer {
+class HttpServer {
     private static final int MAX_HEADER_BYTES = 16 * 1024;
     private static final int MAX_BODY_BYTES = 8 * 1024 * 1024;
 
     private final int port;
-    private final FrontController front;
-    private final Path logDir;
+    /** 单站点是 FrontController::handle，多站点是 Tools 按 Host 选站的分派 */
+    private final Consumer<Context> handler;
 
     private volatile ServerSocket serverSocket;
     private volatile int boundPort = -1;
 
-    HttpServer(int port, FrontController front, Path logDir) {
+    HttpServer(int port, Consumer<Context> handler) {
         this.port = port;
-        this.front = front;
-        this.logDir = logDir;
+        this.handler = handler;
     }
 
     int boundPort() { return boundPort; }
@@ -81,26 +80,31 @@ final class HttpServer {
         }
     }
 
-    private void handleConnection(Socket sock) {
+    protected void handleConnection(Socket sock) {
         try (Socket s = sock;
              InputStream in = new BufferedInputStream(s.getInputStream());
              OutputStream out = new BufferedOutputStream(s.getOutputStream())) {
             s.setSoTimeout(15_000);
 
-            Context ctx = new Context(logDir);
+            Context ctx = new Context();
             if (!parseRequest(in, ctx)) {
                 writeError(out, 400, "bad request");
                 return;
             }
-            front.handle(ctx);
+            selectHandler(ctx).accept(ctx);
             writeResponse(out, ctx);
         } catch (IOException e) {
             // 连接层异常，放弃该连接
         }
     }
 
+    /** 根据 Context 选择对应的 handler。子类可覆盖以支持多站点 */
+    protected Consumer<Context> selectHandler(Context ctx) {
+        return handler;
+    }
+
     /** 最小 HTTP/1.1 解析：请求行 + headers + query string + Content-Length body */
-    private boolean parseRequest(InputStream in, Context ctx) throws IOException {
+    protected boolean parseRequest(InputStream in, Context ctx) throws IOException {
         String requestLine = readLine(in);
         if (requestLine == null || requestLine.isEmpty()) return false;
         String[] rl = requestLine.split(" ");
@@ -210,6 +214,7 @@ final class HttpServer {
             case 404 -> "Not Found";
             case 405 -> "Method Not Allowed";
             case 409 -> "Conflict";
+            case 421 -> "Misdirected Request";
             case 422 -> "Unprocessable Entity";
             case 429 -> "Too Many Requests";
             case 500 -> "Internal Server Error";

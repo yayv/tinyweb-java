@@ -3,6 +3,7 @@ package top.x0a.tinyweb;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 /**
@@ -18,13 +19,19 @@ final class FrontController {
 
     private final ConfigRegistry registry;
     private final SessionStore sessions;
+    /** 从哪个 classloader 找控制器：单站点是应用 classpath，多站点是该站 jar 的 loader */
+    private final ClassLoader loader;
+    private final Path logDir;
 
-    FrontController(ConfigRegistry registry, SessionStore sessions) {
+    FrontController(ConfigRegistry registry, SessionStore sessions, ClassLoader loader, Path logDir) {
         this.registry = registry;
         this.sessions = sessions;
+        this.loader = loader;
+        this.logDir = logDir;
     }
 
     void handle(Context ctx) {
+        ctx.setLogDir(logDir);
         Config config = registry.forHost(ctx.host());
 
         ctx.pushLog("URL:" + ctx.uri() + "\n");
@@ -105,7 +112,8 @@ final class FrontController {
     }
 
     /**
-     * 对照 core.php::loadController：按名反射，缺失回退 DefaultController。
+     * 对照 core.php::loadController：按名反射，缺失先回退站点自己的 DefaultController
+     * （对照每个项目的 c/defaultcontroller.php），站点没写才用框架的。
      * 三道约束（原实现只有第一道）：名字字符集、限定在 app.controllerPackage 下、
      * 必须是 Controller 的具体子类——否则 URL 段等于 new 任意 classpath 上的类。
      */
@@ -113,6 +121,8 @@ final class FrontController {
         Controller c = instantiate(config, ctx, name);
         if (c != null) return c;
         ctx.pushLog("Controller(" + name + ") not found, using DefaultController\n");
+        c = instantiate(config, ctx, "DefaultController");
+        if (c != null) return c;
         DefaultController d = new DefaultController();
         d.bind(ctx, config, null);
         return d;
@@ -123,7 +133,7 @@ final class FrontController {
         String pkg = config.controllerPackage();
         String cls = (pkg.isEmpty() ? "" : pkg + ".") + capitalize(name);
         try {
-            Class<?> k = Class.forName(cls);
+            Class<?> k = Class.forName(cls, true, loader);
             if (!Controller.class.isAssignableFrom(k)) return null;
             if (Modifier.isAbstract(k.getModifiers())) return null;
             Controller c = (Controller) k.getDeclaredConstructor().newInstance();

@@ -37,7 +37,7 @@ public final class TinyWeb {
         this.configuredPort = configuredPort;
     }
 
-    public static Builder builder() { return new Builder(); }
+    public static Builder site() { return new Builder(); }
 
     /** 启动监听并阻塞，直到 {@link #stop()} 被调用 */
     public void start() throws IOException { server.start(); }
@@ -96,10 +96,11 @@ public final class TinyWeb {
 
             ConfigRegistry registry = new ConfigRegistry(cfgDir, overrides);
             SessionStore sessions = new SessionStore(sessionTimeout.toNanos());
-            FrontController front = new FrontController(registry, sessions);
+            ClassLoader loader = Thread.currentThread().getContextClassLoader();
+            FrontController front = new FrontController(registry, sessions, loader, lgDir);
 
             int resolved = resolvePort(registry);
-            return new TinyWeb(new HttpServer(resolved, front, lgDir), resolved);
+            return new TinyWeb(new HttpServer(resolved, front::handle), resolved);
         }
 
         /** 构建并阻塞运行 */
