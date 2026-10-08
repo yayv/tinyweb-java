@@ -3,9 +3,5 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-JAR=../dist/tinyweb.jar
-[ -f "$JAR" ] || { echo "先在上级目录跑 ./build.sh 生成 $JAR"; exit 1; }
-
-rm -rf out && mkdir -p out
-javac --release 21 -cp "$JAR" -d out $(find src -name '*.java')
-echo "built -> demo/out/"
+gradle --quiet classes
+echo "built -> build/classes/java/main/"

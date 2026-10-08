@@ -22,9 +22,6 @@ import java.util.Map;
  *         .run();
  * }</pre>
  *
- * 完全不写 Java 也能起（配置放 configs/cfg.default.conf）：
- * {@code java -cp app.jar:tinyweb.jar top.x0a.tinyweb.Bootstrap 8080}，见 {@link Bootstrap}。
- *
  * 所有路径与包名都走参数注入，没有一处硬编码在 CWD——这是能打成 jar 给别的项目用的前提。
  */
 public final class TinyWeb {
@@ -57,7 +54,7 @@ public final class TinyWeb {
         private Path configDir;
         private Path logDir;
         private Integer port;
-        private Duration sessionTimeout = Duration.ofMinutes(30);
+        private Duration sessionTimeout =   Duration.ofMinutes(30);
         private final Map<String, String> overrides = new LinkedHashMap<>();
 
         private Builder() {}

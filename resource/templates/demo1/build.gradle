@@ -1,0 +1,27 @@
+// 业务项目的构建：只依赖框架 jar，不碰框架源码。目录沿用 src/ 与 resource/，不用 Maven 的 src/main/java。
+plugins {
+    id 'java'
+}
+
+// 框架 jar：gen-project 生成的项目自带 lib/tinyweb.jar；在 tinyweb-java 仓库里则用 ../dist/tinyweb.jar
+def tinywebJar = file('lib/tinyweb.jar').exists() ? file('lib/tinyweb.jar') : file('../dist/tinyweb.jar')
+if (!tinywebJar.exists()) {
+    throw new GradleException("找不到 tinyweb.jar：放到 lib/tinyweb.jar，或先在 tinyweb-java 下跑 ./build.sh 生成 ../dist/tinyweb.jar")
+}
+
+sourceSets {
+    main {
+        java.srcDirs      = ['src']
+        resources.srcDirs = ['resource']
+    }
+}
+
+dependencies {
+    implementation files(tinywebJar)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release  = 21
+    options.encoding = 'UTF-8'
+}
+

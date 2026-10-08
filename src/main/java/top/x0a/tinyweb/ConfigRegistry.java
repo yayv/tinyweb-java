@@ -1,12 +1,16 @@
 package top.x0a.tinyweb;
 
 import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -90,19 +94,22 @@ final class ConfigRegistry {
         return out;
     }
 
+    /**
+     * 按 java.util.Properties 的规则解析：用 Reader 以 UTF-8 读入，中文直接写，不必转义；
+     * 反斜杠是转义符，Windows 路径里的每个反斜杠要写两个。Properties 会保留值末尾的空白，这里统一 strip，
+     * 免得 "demo.Controller␣" 这种看不见的空格让类名查找悄悄失败。键按字典序输出，结果稳定。
+     */
     private List<String[]> readPairs(Path path) {
         List<String[]> pairs = new ArrayList<>();
         if (!Files.isRegularFile(path)) return pairs;   // 缺文件按空，对照 PHP require 回退语义
-        try {
-            for (String raw : Files.readAllLines(path)) {
-                String line = raw.strip();
-                if (line.isEmpty() || line.startsWith("#")) continue;
-                int eq = line.indexOf('=');
-                if (eq < 0) continue;
-                pairs.add(new String[]{ line.substring(0, eq).strip(), line.substring(eq + 1).strip() });
-            }
+        Properties props = new Properties();
+        try (Reader r = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            props.load(r);
         } catch (IOException e) {
             // 读失败按空处理
+        }
+        for (String key : new TreeSet<>(props.stringPropertyNames())) {
+            pairs.add(new String[]{ key.strip(), props.getProperty(key).strip() });
         }
         return pairs;
     }

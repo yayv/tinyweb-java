@@ -28,6 +28,7 @@ public class Home extends Controller {
 
     /** 状态码 + JSON */
     public void api() {
+        enableCors();
         status(201);
         json("{\"controller\":\"home\",\"action\":\"api\",\"ok\":true}");
     }
@@ -47,11 +48,19 @@ public class Home extends Controller {
 
     /** 表单 body（对照 $_POST） */
     public void submit() {
+        enableCors();
         echo("posted name=" + ctx.form("name"));
     }
 
     /** 验证 action 抛异常时的 callstack 非空日志 + 500 */
     public void boom() {
         throw new RuntimeException("intentional");
+    }
+
+    /** 添加 CORS 响应头，允许跨域请求 */
+    private void enableCors() {
+        header("Access-Control-Allow-Origin", "*");
+        header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 }

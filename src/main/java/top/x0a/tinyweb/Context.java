@@ -234,7 +234,7 @@ public final class Context {
         return form;
     }
 
-    /** query string / form body 通用解析：a=1&b=2，百分号解码 */
+    /** query string / form body 通用解析：a=1&amp;b=2，百分号解码 */
     static void parseUrlEncoded(String s, Map<String, String> into) {
         if (s == null || s.isEmpty()) return;
         for (String pair : s.split("&")) {

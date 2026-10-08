@@ -3,6 +3,7 @@ package top.x0a.tinyweb;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,7 +30,7 @@ import javax.tools.ToolProvider;
  * {@code java -cp app.jar:tinyweb.jar top.x0a.tinyweb.Tools.MultiSite 8080}。
  *
  * 当前工具类可以提供的方法包括：
- *  1. 生成默认站点, 接受无头请求，接受错误<域名:端口>请求头等
+ *  1. 生成默认站点, 接受无头请求，接受错误 &lt;域名:端口&gt; 请求头等
  *  2. 检查当前目录下可以被正确载入的站点，并打印列表
  *  3. 输出指定站点的配置错误信息
  *  4. 启动多站点模式
@@ -126,66 +127,86 @@ public final class Tools {
         return jar;
     }
 
-    /** 从 demo1 模板生成项目：读取 jar 内资源、替换包名、写到目标目录 */
+    /** 模板目录，结构与 demo1src 一一对应：src/ configs/ resource/static_pages/ build.gradle settings.gradle build.sh run.sh */
+    private static final String TEMPLATE_BASE = "templates/demo1/";
+
+    /**
+     * 从 demo1 模板生成项目：模板目录下的文件全部带上，源码/配置/脚本替换包名，静态文件原样复制。
+     * 目标文件已存在就保留不覆盖，重复执行不会冲掉已经改过的代码。
+     */
     public Path genProject(String targetDir, String packageName) throws IOException {
         Path dir = Paths.get(targetDir);
-        String templateBase = "templates/demo1";
         String packagePath = packageName.replace('.', '/');
 
-        // 从 jar 包或文件系统读取模板文件
-        String selfJarPath;
-        try {
-            selfJarPath = Paths.get(Tools.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
-        } catch (java.net.URISyntaxException e) {
-            throw new IOException("无法确定框架 jar 位置", e);
-        }
+        Map<String, byte[]> files = readTemplate();
+        if (files.isEmpty()) throw new IllegalStateException("框架里找不到模板: " + TEMPLATE_BASE);
 
-        for (String path : TEMPLATE_FILES) {
-            String templatePath = templateBase + "/" + path;
-            byte[] content = readTemplateFile(selfJarPath, templatePath);
-            if (content == null) {
-                System.err.println("警告：模板文件不存在: " + templatePath);
+        for (Map.Entry<String, byte[]> e : files.entrySet()) {
+            String path = e.getKey();
+            Path target = dir.resolve(replacePath(path, packagePath));
+            if (Files.exists(target)) {
+                System.out.println("保留: " + target + "（已存在）");
                 continue;
             }
-
-            String targetPath = replacePath(path, packagePath);
-            Path targetFile = dir.resolve(targetPath);
-            String contentStr = new String(content);
-
+            byte[] bytes = e.getValue();
             if (path.endsWith(".java") || path.endsWith(".conf") || path.endsWith(".sh")) {
-                contentStr = replaceContent(contentStr, packageName, packagePath);
+                bytes = replaceContent(new String(bytes, StandardCharsets.UTF_8), packageName, packagePath)
+                        .getBytes(StandardCharsets.UTF_8);
             }
-
-            Files.createDirectories(targetFile.getParent());
-            Files.writeString(targetFile, contentStr);
-            System.out.println("生成: " + targetFile);
+            Files.createDirectories(target.getParent());
+            Files.write(target, bytes);
+            if (path.endsWith(".sh")) target.toFile().setExecutable(true, false);   // run.sh 里是 ./build.sh
+            System.out.println("生成: " + target);
         }
 
+        // 生成的项目自带一份框架 jar，build.gradle / run.sh 先找 lib/tinyweb.jar，项目放到哪都能编译
+        String self = selfLocation();
+        Path lib = dir.resolve("lib/tinyweb.jar");
+        if (!self.endsWith(".jar")) {
+            System.out.println("跳过: " + lib + "（框架不是从 jar 运行的，请自己放一份）");
+        } else if (Files.exists(lib)) {
+            System.out.println("保留: " + lib + "（已存在）");
+        } else {
+            Files.createDirectories(lib.getParent());
+            Files.copy(Paths.get(self), lib);
+            System.out.println("复制: " + self + " -> " + lib);
+        }
         return dir;
     }
 
-    /**
-     * 从 jar 包或文件系统读取模板文件
-     * @param jarPath jar 文件路径（或 null 表示不是 jar）
-     * @param resourcePath 资源路径
-     * @return 文件内容，不存在返回 null
-     */
-    private byte[] readTemplateFile(String jarPath, String resourcePath) throws IOException {
-        if (jarPath.endsWith(".jar")) {
-            try (JarFile jar = new JarFile(jarPath)) {
-                JarEntry entry = jar.getJarEntry(resourcePath);
-                if (entry != null) {
-                    return jar.getInputStream(entry).readAllBytes();
+    /** 框架自身所在位置：从 jar 运行时是 tinyweb.jar 的路径，开发时是 class 目录 */
+    private static String selfLocation() throws IOException {
+        try {
+            return Paths.get(Tools.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
+        } catch (java.net.URISyntaxException e) {
+            throw new IOException("无法确定框架 jar 位置", e);
+        }
+    }
+
+    /** 模板目录下的全部文件：相对路径 → 内容。从框架 jar 里读；开发时直接跑 class 目录则读 resource/ */
+    private static Map<String, byte[]> readTemplate() throws IOException {
+        Map<String, byte[]> out = new TreeMap<>();
+        String self = selfLocation();
+        if (self.endsWith(".jar")) {
+            try (JarFile jar = new JarFile(self)) {
+                for (JarEntry en : jar.stream().toList()) {
+                    String name = en.getName();
+                    if (en.isDirectory() || !name.startsWith(TEMPLATE_BASE) || name.endsWith(".DS_Store")) continue;
+                    out.put(name.substring(TEMPLATE_BASE.length()), jar.getInputStream(en).readAllBytes());
                 }
             }
         } else {
-            // 开发环境，从文件系统读取
-            Path path = Paths.get("resource").resolve(resourcePath);
-            if (Files.isRegularFile(path)) {
-                return Files.readAllBytes(path);
+            Path root = Paths.get("resource").resolve(TEMPLATE_BASE);
+            if (Files.isDirectory(root)) {
+                try (Stream<Path> s = Files.walk(root)) {
+                    for (Path f : s.filter(Files::isRegularFile).toList()) {
+                        if (f.getFileName().toString().equals(".DS_Store")) continue;
+                        out.put(root.relativize(f).toString().replace('\\', '/'), Files.readAllBytes(f));
+                    }
+                }
             }
         }
-        return null;
+        return out;
     }
 
     private String replacePath(String path, String packagePath) {
@@ -201,19 +222,6 @@ public final class Tools {
         content = content.replace("controllerPackage(\"demo", "controllerPackage(\"" + packageName);
         return content;
     }
-
-    private static final List<String> TEMPLATE_FILES = List.of(
-            "src/demo/Controller/Home.java",
-            "src/demo/Controller/User.java",
-            "src/demo/Model/Greeter.java",
-            "src/demo/Model/MUser.java",
-            "src/demo/Main.java",
-            "src/demo/TokenUtils.java",
-            "configs/cfg.default.conf",
-            "configs/cmap.default.conf",
-            "build.sh",
-            "run.sh"
-    );
 
     /** TODO: 生成站点的启动脚本，单站点启动用 */
     public void genScriptRun() {
@@ -426,6 +434,7 @@ public final class Tools {
     private static final String DEFAULT_CONFIG = """
             # 默认站点：接收没有 Host、或 Host 没被任何站点认领的请求。
             # 默认站点不能有 cfg.<host>.conf，只有这一份配置。
+            # 按 Java properties 规则解析：反斜杠是转义符，Windows 路径写成 C:\\\\logs\\\\tinyweb
             app.controllerPackage=defaultsite
             # 扫描器和配错的请求不需要会话，关掉，免得会话表被它们撑大
             manualsession=1
@@ -461,9 +470,151 @@ public final class Tools {
             }
             """;
 
+    // ================= 运行环境检查 =================
+
+    /** 已验证可用的 Gradle 版本；低于 8.5 的 Gradle 跑不起 Java 21 */
+    private static final String GRADLE_VERSION = "9.7.1";
+    private static final int[] GRADLE_MIN = {8, 5};
+
+    /**
+     * 检查编译/运行业务项目需要的外部依赖，缺什么就给出安装方法。
+     * 能执行到这里说明 JVM 至少是 21（本 jar 按 --release 21 编译，更低的版本连 main 都进不来）。
+     * @return 全部满足为 true
+     */
+    public boolean checkEnv() {
+        boolean win = System.getProperty("os.name", "").toLowerCase().startsWith("windows");
+        boolean mac = System.getProperty("os.name", "").toLowerCase().startsWith("mac");
+        boolean ok = true;
+        System.out.println("运行环境检查：");
+
+        System.out.printf("  %-8s OK   %s (%s)%n", "java", Runtime.version(), System.getProperty("java.home"));
+
+        // 查命令行上的 javac 而不是当前 JVM：build.sh / gradle 用的是 PATH 上的工具
+        Path javac = which("javac", win);
+        String javacVersion = javac == null ? null : versionLine(javac, "-version", "javac ");
+        if (javac == null) {
+            ok = false;
+            System.out.printf("  %-8s 缺失 PATH 里找不到 javac，只装了 JRE 不能编译，需要 JDK 21+%n", "javac");
+            System.out.println("           下载: https://adoptium.net/temurin/releases/?version=21");
+        } else if (javacVersion == null) {
+            ok = false;
+            System.out.printf("  %-8s 不可用 %s 执行 javac -version 失败（macOS 没装 JDK 时 /usr/bin/javac 只是个空壳）%n", "javac", javac);
+            System.out.println("           下载: https://adoptium.net/temurin/releases/?version=21");
+        } else if (versionAtLeast(javacVersion, new int[]{21})) {
+            System.out.printf("  %-8s OK   %s (%s)%n", "javac", javacVersion, javac);
+        } else {
+            ok = false;
+            System.out.printf("  %-8s 过旧 %s (%s)，需要 JDK 21+%n", "javac", javacVersion, javac);
+            System.out.println("           下载: https://adoptium.net/temurin/releases/?version=21");
+        }
+
+        Path gradlew = home.resolve(win ? "gradlew.bat" : "gradlew");
+        Path gradle = which("gradle", win);
+        if (Files.isRegularFile(gradlew)) {
+            System.out.printf("  %-8s OK   用项目自带的 wrapper: %s（首次运行会自动下载 Gradle）%n", "gradle", gradlew);
+        } else if (gradle == null) {
+            ok = false;
+            System.out.printf("  %-8s 缺失 PATH 里找不到 gradle%n", "gradle");
+            gradleInstallHint(win, mac);
+        } else {
+            String v = versionLine(gradle, "--version", "Gradle ");
+            if (v == null) {
+                System.out.printf("  %-8s ?    %s 取不到版本号，请手动执行 gradle --version 确认%n", "gradle", gradle);
+            } else if (versionAtLeast(v, GRADLE_MIN)) {
+                System.out.printf("  %-8s OK   %s (%s)%n", "gradle", v, gradle);
+            } else {
+                ok = false;
+                System.out.printf("  %-8s 过旧 %s (%s)，Java 21 需要 Gradle %d.%d+%n", "gradle", v, gradle, GRADLE_MIN[0], GRADLE_MIN[1]);
+                gradleInstallHint(win, mac);
+            }
+        }
+
+        if (win) {
+            if (which("bash", true) != null) {
+                System.out.printf("  %-8s OK%n", "bash");
+            } else {
+                ok = false;
+                System.out.printf("  %-8s 缺失 build.sh / run.sh 需要 bash%n", "bash");
+                System.out.println("           安装 Git for Windows（自带 Git Bash）: https://git-scm.com/download/win");
+            }
+        }
+
+        System.out.println(ok ? "环境齐全。" : "有缺项，按上面的提示安装后再执行一次 check-env。");
+        return ok;
+    }
+
+    private static void gradleInstallHint(boolean win, boolean mac) {
+        String zip = "gradle-" + GRADLE_VERSION + "-bin.zip";
+        System.out.println("           安装方法任选其一：");
+        if (mac) {
+            System.out.println("             brew install gradle");
+        } else if (win) {
+            System.out.println("             scoop install gradle      或   choco install gradle");
+        } else {
+            System.out.println("             curl -s \"https://get.sdkman.io\" | bash && sdk install gradle " + GRADLE_VERSION);
+        }
+        System.out.println("             手动下载解压，把 bin 目录加进 PATH:");
+        System.out.println("               https://services.gradle.org/distributions/" + zip);
+        System.out.println("               国内镜像: https://mirrors.cloud.tencent.com/gradle/" + zip);
+        System.out.println("             全部版本: https://gradle.org/releases/");
+    }
+
+    /** 在 PATH 里找可执行文件；Windows 下依次试 .bat/.cmd/.exe */
+    private static Path which(String name, boolean win) {
+        String path = System.getenv("PATH");
+        if (path == null) return null;
+        List<String> names = win ? List.of(name + ".bat", name + ".cmd", name + ".exe") : List.of(name);
+        for (String dir : path.split(java.io.File.pathSeparator)) {
+            for (String n : names) {
+                try {
+                    Path p = Paths.get(dir, n);
+                    if (Files.isRegularFile(p) && Files.isExecutable(p)) return p;
+                } catch (java.nio.file.InvalidPathException ignore) { }
+            }
+        }
+        return null;
+    }
+
+    /** 执行 `exe flag`，取以 prefix 开头那一行去掉 prefix 的部分（如 "javac 21.0.11" → "21.0.11"）；失败返回 null */
+    private static String versionLine(Path exe, String flag, String prefix) {
+        try {
+            Process p = new ProcessBuilder(exe.toString(), flag).redirectErrorStream(true).start();
+            p.getOutputStream().close();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            if (!p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                return null;
+            }
+            for (String line : out.split("\\R")) {
+                if (line.startsWith(prefix)) return line.substring(prefix.length()).trim();
+            }
+        } catch (IOException e) {
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return null;
+    }
+
+    /** "9.7.1" / "8.5-rc-1" 这类版本号是否不低于 min */
+    private static boolean versionAtLeast(String version, int[] min) {
+        String[] parts = version.split("[.\\-]");
+        for (int i = 0; i < min.length; i++) {
+            int v;
+            try {
+                v = i < parts.length ? Integer.parseInt(parts[i]) : 0;
+            } catch (NumberFormatException e) {
+                v = 0;
+            }
+            if (v != min[i]) return v > min[i];
+        }
+        return true;
+    }
+
     public static void main(String[] args) throws Exception {
         Tools tools = new Tools(Paths.get(System.getProperty("tinyweb.home", ".")));
         String cmd = args.length > 0 ? args[0] : "";
+        String port = args.length > 1 ? args[1] : "";
         try {
             switch (cmd) {
                 case "list" -> tools.checkDirs();
@@ -472,13 +623,17 @@ public final class Tools {
                     tools.reportSiteProblems(args[1]);
                 }
                 case "gen-default" -> tools.genDefaultSite();
+                case "check-env" -> {
+                    if (!tools.checkEnv()) System.exit(1);
+                }
                 case "gen-project" -> {
                     if (args.length < 3) usage("gen-project 需要目标目录和包名");
                     tools.genProject(args[1], args[2]);
                     System.out.println("✓ 项目生成完成: " + args[1]);
                 }
-                default -> tools.runMultiSite(parsePort(
-                        cmd.isEmpty() ? System.getProperty("tinyweb.port", "8080") : cmd));
+                case "run-sites" -> tools.runMultiSite(parsePort(
+                        port.isEmpty() ? System.getProperty("tinyweb.port", "8080") : port));
+                default ->  usage("");
             }
         } catch (IllegalStateException e) {
             System.err.println(e.getMessage());
@@ -500,11 +655,13 @@ public final class Tools {
         System.err.println(why);
         System.err.println("""
                 用法：
-                  java -jar tinyweb.jar [port]                  启动多站点模式，端口缺省 8080
-                  java -jar tinyweb.jar list                    列出站点及能否载入
+                  java -jar tinyweb.jar [usage]                 打印帮助信息（本提示）
+                  java -jar tinyweb.jar list [dir]              列出指定目录下的站点及能否载入
+                  java -jar tinyweb.jar run-sites [port]        启动多站点模式，端口缺省 8080
                   java -jar tinyweb.jar check <name>            输出指定站点的配置问题
-                  java -jar tinyweb.jar gen-default             生成默认站点
-                  java -jar tinyweb.jar gen-project <dir> <pkg> 从 demo1 模板生成项目""");
+                  java -jar tinyweb.jar check-env               检查 JDK / Gradle 等运行环境，缺什么给出安装方法
+                  java -jar tinyweb.jar gen-project [dir]       生成默认项目 不指定 div 和 pkg 参数时, dir 默认为 default
+        """);
         System.exit(2);
     }
 }

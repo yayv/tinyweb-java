@@ -26,10 +26,10 @@ curl http://localhost:8080/home/index
 ### 1. 无数据库 JWT 登录、退出和身份验证的演示
 demo1src
 
-### 2. 直连数据库的 CRUD 网站
+### 2. 直连数据库的 CMS 网站
 demo2src
 
-### 3. 一个简单的无头 CMS
+### 3. 一个简单的 blog 网站，基于 demo1+demo2 改造为使用 sqlite
 demo3src
 前端页面可以去 vue3-pcweb-cms 项目
 

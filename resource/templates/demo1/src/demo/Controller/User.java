@@ -13,6 +13,7 @@ public class User extends Controller {
     }
 
     public void login() {
+        enableCors();
         String username = ctx.form("username");
         String password = ctx.form("password");
 
@@ -40,8 +41,15 @@ public class User extends Controller {
     }
 
     public void logout() {
+        enableCors();
         status(200);
         json("{\"ok\":true,\"message\":\"logged out\"}");
+    }
+
+    private void enableCors() {
+        header("Access-Control-Allow-Origin", "*");
+        header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     }
 
     private String escapeJson(String str) {

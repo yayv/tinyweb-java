@@ -16,7 +16,7 @@ final class MultiSiteHttpServer extends HttpServer {
     private final Map<String, Consumer<Context>> byHost;
     private final Consumer<Context> defaultHandler;
 
-    /** 接收 Map<host, Consumer<Context>>，Consumer 通常是 frontController::handle */
+    /** 接收 Map&lt;host, Consumer&lt;Context&gt;&gt;，Consumer 通常是 frontController::handle */
     MultiSiteHttpServer(int port, Map<String, Consumer<Context>> byHost, Consumer<Context> defaultHandler) {
         super(port, defaultHandler);   // fallback，通常不会用到
         this.byHost = new HashMap<>(byHost);

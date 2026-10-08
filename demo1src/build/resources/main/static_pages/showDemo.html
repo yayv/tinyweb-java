@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tinyWEB Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .demo-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .demo-section-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            font-size: 1.3em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .demo-section-title::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 24px;
+            background: white;
+            border-radius: 2px;
+        }
+
+        .demo-section-content {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-success {
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+
+        .message-error {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+        }
+
+        .message-info {
+            background: #f0f9ff;
+            border: 1px solid #7dd3fc;
+            color: #0c4a6e;
+        }
+
+        .description {
+            color: #666;
+            font-size: 0.95em;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 tinyWEB Demo</h1>
+            <p>功能演示和 API 测试</p>
+        </div>
+
+        <!-- ========== API 配置 Section ========== -->
+        <div class="demo-section">
+            <div class="demo-section-title">⚙️ API 服务器配置</div>
+            <div class="demo-section-content">
+                <div class="description">
+                    配置 API 服务器地址。默认值为 http://localhost:8080，配置会保存在浏览器本地存储中。
+                </div>
+
+                <div class="form-group">
+                    <label for="api-host-input">API 服务器地址</label>
+                    <input type="url" id="api-host-input" placeholder="例如: http://localhost:8080" />
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="setApiHost()">保存设置</button>
+                    <button class="btn-secondary" onclick="resetApiHost()">恢复默认值</button>
+                </div>
+
+                <div id="api-config-message" class="message"></div>
+            </div>
+        </div>
+
+        <!-- ========== Demo1 Section ========== -->
+        <div class="demo-section">
+            <div class="demo-section-title">Demo1：快速开发网站</div>
+            <div class="demo-section-content">
+                <div class="description">
+                    Demo1 演示了 tinyWEB 框架的基础功能：控制器、模型、会话、表单提交、异常处理等。
+                </div>
+
+                <!-- 表单提交 -->
+                <div style="margin-bottom: 30px;">
+                    <h3 style="margin-bottom: 15px; color: #333;">📝 表单提交</h3>
+                    <div class="form-group">
+                        <label for="demo1-name">输入名字</label>
+                        <input type="text" id="demo1-name" placeholder="例如：Alice" />
+                    </div>
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="submitDemo1Form()">提交表单</button>
+                    </div>
+                </div>
+
+                <!-- 登录表单 -->
+                <div style="margin-bottom: 30px;">
+                    <h3 style="margin-bottom: 15px; color: #333;">🔐 用户登录</h3>
+                    <p style="font-size: 0.9em; color: #999; margin-bottom: 15px;">（用户名: admin, 密码: test123）</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="demo1-username">用户名</label>
+                            <input type="text" id="demo1-username" placeholder="admin" />
+                        </div>
+                        <div class="form-group">
+                            <label for="demo1-password">密码</label>
+                            <input type="password" id="demo1-password" placeholder="test123" />
+                        </div>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="demo1Login()">登录</button>
+                    </div>
+                </div>
+
+                <!-- 会话计数 -->
+                <div style="margin-bottom: 30px;">
+                    <h3 style="margin-bottom: 15px; color: #333;">📊 会话计数</h3>
+                    <p style="font-size: 0.9em; color: #999; margin-bottom: 15px;">演示会话保持功能，每次点击计数器加 1</p>
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="demo1Counter()">点击计数</button>
+                    </div>
+                </div>
+
+                <!-- 问候 -->
+                <div style="margin-bottom: 30px;">
+                    <h3 style="margin-bottom: 15px; color: #333;">👋 问候信息</h3>
+                    <div class="form-group">
+                        <label for="demo1-greet-name">输入名字</label>
+                        <input type="text" id="demo1-greet-name" placeholder="可选，留空则默认 stranger" />
+                    </div>
+                    <div class="button-group">
+                        <button class="btn-primary" onclick="demo1Greet()">获取问候</button>
+                    </div>
+                </div>
+
+                <!-- 返回消息 -->
+                <div id="demo1-message" class="message"></div>
+            </div>
+        </div>
+
+        <!-- ========== Demo2 Section ========== -->
+        <div class="demo-section">
+            <div class="demo-section-title">Demo2：第三方库集成</div>
+            <div class="demo-section-content">
+                <div class="description">
+                    Demo2 演示了如何在 tinyWEB 中集成第三方库，如数据库驱动和模板引擎。
+                </div>
+
+                <!-- 占位符 -->
+                <div style="padding: 40px; text-align: center; background: #f9f9f9; border-radius: 4px;">
+                    <p style="font-size: 1.1em; color: #999;">⏳ Demo2 功能正在开发中...</p>
+                    <p style="font-size: 0.9em; color: #ccc; margin-top: 10px;">敬请期待</p>
+                </div>
+
+                <!-- 返回消息 -->
+                <div id="demo2-message" class="message"></div>
+            </div>
+        </div>
+
+        <!-- 页脚 -->
+        <div style="text-align: center; color: white; margin-top: 50px; padding-bottom: 20px;">
+            <p>Demo3 和 Demo4 的页面功能将在后续添加</p>
+        </div>
+    </div>
+
+    <script src="showDemo.js"></script>
+</body>
+</html>
