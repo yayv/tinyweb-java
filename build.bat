@@ -1,52 +1,67 @@
 @echo off
-REM åªç¼–è¯‘æ¡†æž¶ï¼Œæ‰“æˆ dist\tinyweb.jarã€‚é›¶ä¾èµ–ï¼Œåªéœ€ JDK 21+ï¼ˆæ— éœ€ Gradleï¼‰ã€‚
-REM demo\ ä¸åœ¨ç¼–è¯‘èŒƒå›´å†…â€”â€”å®ƒæ˜¯"ä¸šåŠ¡é¡¹ç›®"ï¼Œç¼–è¯‘æ—¶æŠŠæœ¬ jar æ”¾è¿› classpathã€‚
+REM Ö»±àÒë¿ò¼Ü£¬´ò³É dist\tinyweb.jar¡£ÁãÒÀÀµ£¬Ö»Ðè JDK 21+£¨ÎÞÐè Gradle£©¡£
+REM demo\ ²»ÔÚ±àÒë·¶Î§ÄÚ¡ª¡ªËüÊÇ"ÒµÎñÏîÄ¿"£¬±àÒëÊ±°Ñ±¾ jar ·Å½ø classpath¡£
 setlocal enabledelayedexpansion
 
-REM åˆ‡åˆ°è„šæœ¬æ‰€åœ¨ç›®å½•ï¼ˆå¯¹åº” build.sh çš„ cd "$(dirname "$0")"ï¼‰
+REM ÇÐµ½½Å±¾ËùÔÚÄ¿Â¼£¨¶ÔÓ¦ build.sh µÄ cd "$(dirname "$0")"£©
 cd /d "%~dp0"
 
 if not defined TINYWEB_VERSION set "TINYWEB_VERSION=0.2.0"
 
-REM æ£€æŸ¥ JDK æ˜¯å¦å°±ç»ª
-where javac >nul 2>nul
-if errorlevel 1 (
-    echo [é”™è¯¯] æ‰¾ä¸åˆ° javacï¼Œè¯·å…ˆå®‰è£… JDK 21+ å¹¶æŠŠ bin ç›®å½•åŠ å…¥ PATHã€‚
+REM ¶¨Î»ÍêÕû JDK µÄ bin£¨ÐèÒª javac ºÍ jar Á½¸ö¹¤¾ß£©¡£
+REM ¿Ó£ºOracle °²×°Æ÷Íù PATH ÈûµÄ javapath Ä¿Â¼Ö»ÓÐ java/javac£¬Ã»ÓÐ jar.exe£¬
+REM ËùÒÔ²»ÄÜÖ»¿¿ PATH¡£ÓÅÏÈ JAVA_HOME£¬·ñÔò´Ó java ×Ô±¨µÄ java.home ¶Á³öÀ´¡£
+set "JDK_BIN="
+if defined JAVA_HOME if exist "%JAVA_HOME%\bin\jar.exe" set "JDK_BIN=%JAVA_HOME%\bin"
+
+if not defined JDK_BIN (
+    for /f "tokens=1,* delims==" %%I in ('java -XshowSettings:properties -version 2^>^&1 ^| findstr /c:"java.home"') do set "JAVA_HOME_DETECTED=%%J"
+    REM È¥µô java.home ÖµµÄÇ°µ¼¿Õ¸ñ
+    for /f "tokens=* delims= " %%H in ("!JAVA_HOME_DETECTED!") do set "JAVA_HOME_DETECTED=%%H"
+    if defined JAVA_HOME_DETECTED if exist "!JAVA_HOME_DETECTED!\bin\jar.exe" set "JDK_BIN=!JAVA_HOME_DETECTED!\bin"
+)
+
+if not defined JDK_BIN (
+    echo [´íÎó] ÕÒ²»µ½ÍêÕû JDK 21+£¨ÐèÒª javac ºÍ jar£©¡£
+    echo         Çë°²×° JDK ²¢°Ñ JAVA_HOME Ö¸ÏòÆä¸ùÄ¿Â¼£¬»ò°Ñ¸Ã JDK µÄ bin ¼ÓÈë PATH¡£
     exit /b 1
 )
 
-REM æ¸…ç†å¹¶é‡å»ºè¾“å‡ºç›®å½•
+set "JAVAC=%JDK_BIN%\javac"
+set "JAR=%JDK_BIN%\jar"
+
+REM ÇåÀí²¢ÖØ½¨Êä³öÄ¿Â¼
 if exist out\classes rd /s /q out\classes
 if not exist out\classes mkdir out\classes
 if not exist dist mkdir dist
 
-REM æ”¶é›†æ‰€æœ‰æ¡†æž¶æºç åˆ°å‚æ•°æ–‡ä»¶ï¼ˆjavac @fileï¼‰ï¼Œæ›¿ä»£ Unix çš„ find
+REM ÊÕ¼¯ËùÓÐ¿ò¼ÜÔ´Âëµ½²ÎÊýÎÄ¼þ£¨javac @file£©£¬Ìæ´ú Unix µÄ find
 set "SOURCES=out\sources.txt"
 dir /s /b "src\main\java\top\x0a\tinyweb\*.java" > "%SOURCES%"
 
-REM ç¼–è¯‘
-javac --release 21 -Xlint:all -d out\classes "@%SOURCES%"
+REM ±àÒë
+"%JAVAC%" --release 21 -Xlint:all -d out\classes "@%SOURCES%"
 if errorlevel 1 (
-    echo [é”™è¯¯] ç¼–è¯‘å¤±è´¥ã€‚
+    echo [´íÎó] ±àÒëÊ§°Ü¡£
     del "%SOURCES%" 2>nul
     exit /b 1
 )
 del "%SOURCES%" 2>nul
 
-REM æ‰“åŒ…ï¼šå…¥å£ Toolsï¼Œè¿žåŒ resource ä¸€å¹¶æ‰“å…¥
-jar --create --file dist\tinyweb.jar ^
+REM ´ò°ü£ºÈë¿Ú Tools£¬Á¬Í¬ resource Ò»²¢´òÈë
+"%JAR%" --create --file dist\tinyweb.jar ^
     --main-class top.x0a.tinyweb.Tools ^
     -C out\classes . ^
     -C resource .
 if errorlevel 1 (
-    echo [é”™è¯¯] æ‰“åŒ…å¤±è´¥ã€‚
+    echo [´íÎó] ´ò°üÊ§°Ü¡£
     exit /b 1
 )
 
 echo built -^> dist\tinyweb.jar ^(v%TINYWEB_VERSION%^)
 echo.
-echo ä¸šåŠ¡é¡¹ç›®ç”¨æ³•ï¼š
-echo   javac -cp dist\tinyweb.jar -d ^<out^> ^<ä½ çš„æºç ^>
-echo   å¤šç«™ç‚¹ï¼šcd ^<éƒ¨ç½²ç›®å½•^> ^&^& java -jar tinyweb.jar [port^|list^|check ^<name^>^|gen-default]
+echo ÒµÎñÏîÄ¿ÓÃ·¨£º
+echo   javac -cp dist\tinyweb.jar -d ^<out^> ^<ÄãµÄÔ´Âë^>
+echo   ¶àÕ¾µã£ºcd ^<²¿ÊðÄ¿Â¼^> ^&^& java -jar tinyweb.jar [port^|list^|check ^<name^>^|gen-default]
 
 endlocal
